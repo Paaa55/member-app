@@ -38,7 +38,10 @@ export default function LiffTestPage() {
             <p>ID Token: {idToken ? 'ได้รับแล้ว' : 'ไม่พบ'}</p>
 
             {!loading && !error && !isLoggedIn && (
-                <button onClick={login}>
+                <button
+                    onClick={login}
+                    className="bg-[#06C755] text-white px-6 py-3 rounded-xl"
+                >
                     เข้าสู่ระบบด้วย LINE
                 </button>
             )}
