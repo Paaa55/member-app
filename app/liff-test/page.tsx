@@ -1,101 +1,24 @@
-
 'use client';
 
-import { useEffect, useState } from 'react';
-import liff from '@line/liff';
+import { useLiff } from "../components/LiffProvider";
 
-interface LiffUser {
-    userId: string;
-    displayName: string;
-    pictureUrl?: string;
-}
 
 export default function LiffTestPage() {
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState('');
-    const [user, setUser] = useState<LiffUser | null>(null);
-    const [debug, setDebug] = useState({
-        liffInitialized: false,
-        isInClient: false,
-        isLoggedIn: false,
-        hasIdToken: false,
-    });
-
-    useEffect(() => {
-        let cancelled = false;
-
-        async function initializeLiff() {
-            try {
-                const liffId = process.env.NEXT_PUBLIC_LIFF_ID;
-
-                if (!liffId) {
-                    throw new Error('LIFF ID is not configured');
-                }
-
-                await liff.init({ liffId });
-
-                if (cancelled) return;
-
-                const isInClient = liff.isInClient();
-                const isLoggedIn = liff.isLoggedIn();
-                const idToken = liff.getIDToken();
-
-                setDebug({
-                    liffInitialized: true,
-                    isInClient,
-                    isLoggedIn,
-                    hasIdToken: Boolean(idToken),
-                });
-
-                if (!isLoggedIn) {
-                    if (!isInClient) {
-                        liff.login();
-                        return;
-                    }
-
-                    throw new Error('LINE user is not logged in');
-                }
-
-                if (!idToken) {
-                    throw new Error(
-                        'ID Token not found. Check openid scope.',
-                    );
-                }
-
-                const profile = await liff.getProfile();
-
-                if (cancelled) return;
-
-                setUser({
-                    userId: profile.userId,
-                    displayName: profile.displayName,
-                    pictureUrl: profile.pictureUrl,
-                });
-            } catch (err) {
-                if (cancelled) return;
-
-                setError(
-                    err instanceof Error
-                        ? err.message
-                        : 'Unable to initialize LIFF',
-                );
-            } finally {
-                if (!cancelled) {
-                    setLoading(false);
-                }
-            }
-        }
-
-        initializeLiff();
-
-        return () => {
-            cancelled = true;
-        };
-    }, []);
+    const {
+        loading,
+        error,
+        isInitialized,
+        isInClient,
+        isLoggedIn,
+        idToken,
+        user,
+        login,
+    } = useLiff();
 
     return (
         <main style={{ padding: 24 }}>
-            <h1>Retail Member App</h1>
+            <h1>TJ Member</h1>
+            <p>LIFF Integration Test</p>
 
             {loading && <p>กำลังเชื่อมต่อ LINE...</p>}
 
@@ -105,15 +28,25 @@ export default function LiffTestPage() {
                 </p>
             )}
 
+            <hr />
+
             <h2>LIFF Debug</h2>
-            <p>LIFF Initialized: {String(debug.liffInitialized)}</p>
-            <p>Inside LINE: {String(debug.isInClient)}</p>
-            <p>Logged In: {String(debug.isLoggedIn)}</p>
-            <p>ID Token: {debug.hasIdToken ? 'ได้รับแล้ว' : 'ไม่พบ'}</p>
+
+            <p>LIFF Initialized: {String(isInitialized)}</p>
+            <p>Inside LINE: {String(isInClient)}</p>
+            <p>Logged In: {String(isLoggedIn)}</p>
+            <p>ID Token: {idToken ? 'ได้รับแล้ว' : 'ไม่พบ'}</p>
+
+            {!loading && !error && !isLoggedIn && (
+                <button onClick={login}>
+                    เข้าสู่ระบบด้วย LINE
+                </button>
+            )}
 
             {user && (
                 <>
                     <hr />
+
                     <h2>LINE Profile</h2>
 
                     {user.pictureUrl && (
