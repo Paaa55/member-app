@@ -14,7 +14,12 @@ export default function LiffTestPage() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
     const [user, setUser] = useState<LiffUser | null>(null);
-    const [hasIdToken, setHasIdToken] = useState(false);
+    const [debug, setDebug] = useState({
+        liffInitialized: false,
+        isInClient: false,
+        isLoggedIn: false,
+        hasIdToken: false,
+    });
 
     useEffect(() => {
         let cancelled = false;
@@ -29,22 +34,31 @@ export default function LiffTestPage() {
 
                 await liff.init({ liffId });
 
-                // Outside LINE app, redirect to LINE Login if needed.
-                // Inside LIFF browser, login is handled by LIFF initialization.
-                if (!liff.isLoggedIn()) {
-                    if (!liff.isInClient()) {
+                if (cancelled) return;
+
+                const isInClient = liff.isInClient();
+                const isLoggedIn = liff.isLoggedIn();
+                const idToken = liff.getIDToken();
+
+                setDebug({
+                    liffInitialized: true,
+                    isInClient,
+                    isLoggedIn,
+                    hasIdToken: Boolean(idToken),
+                });
+
+                if (!isLoggedIn) {
+                    if (!isInClient) {
                         liff.login();
                         return;
                     }
 
-                    throw new Error('Unable to authenticate LINE user');
+                    throw new Error('LINE user is not logged in');
                 }
-
-                const idToken = liff.getIDToken();
 
                 if (!idToken) {
                     throw new Error(
-                        'ID Token not found. Check the openid scope in LINE Developers.',
+                        'ID Token not found. Check openid scope.',
                     );
                 }
 
@@ -52,7 +66,6 @@ export default function LiffTestPage() {
 
                 if (cancelled) return;
 
-                setHasIdToken(true);
                 setUser({
                     userId: profile.userId,
                     displayName: profile.displayName,
@@ -80,38 +93,43 @@ export default function LiffTestPage() {
         };
     }, []);
 
-    if (loading) {
-        return <main>กำลังเชื่อมต่อ LINE...</main>;
-    }
-
-    if (error) {
-        return (
-            <main>
-                <h1>LIFF Error</h1>
-                <p>{error}</p>
-            </main>
-        );
-    }
-
     return (
         <main style={{ padding: 24 }}>
             <h1>Retail Member App</h1>
 
-            <p>LINE Login สำเร็จ</p>
+            {loading && <p>กำลังเชื่อมต่อ LINE...</p>}
 
-            {user?.pictureUrl && (
-                <img
-                    src={user.pictureUrl}
-                    alt="LINE Profile"
-                    width={80}
-                    height={80}
-                    style={{ borderRadius: '50%' }}
-                />
+            {error && (
+                <p style={{ color: 'red' }}>
+                    LIFF Error: {error}
+                </p>
             )}
 
-            <p>ชื่อ: {user?.displayName}</p>
-            <p>LINE User ID: {user?.userId}</p>
-            <p>ID Token: {hasIdToken ? 'ได้รับแล้ว' : 'ไม่พบ Token'}</p>
+            <h2>LIFF Debug</h2>
+            <p>LIFF Initialized: {String(debug.liffInitialized)}</p>
+            <p>Inside LINE: {String(debug.isInClient)}</p>
+            <p>Logged In: {String(debug.isLoggedIn)}</p>
+            <p>ID Token: {debug.hasIdToken ? 'ได้รับแล้ว' : 'ไม่พบ'}</p>
+
+            {user && (
+                <>
+                    <hr />
+                    <h2>LINE Profile</h2>
+
+                    {user.pictureUrl && (
+                        <img
+                            src={user.pictureUrl}
+                            alt="LINE Profile"
+                            width={80}
+                            height={80}
+                            style={{ borderRadius: '50%' }}
+                        />
+                    )}
+
+                    <p>ชื่อ: {user.displayName}</p>
+                    <p>LINE User ID: {user.userId}</p>
+                </>
+            )}
         </main>
     );
 }
