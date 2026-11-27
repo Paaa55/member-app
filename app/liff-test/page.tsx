@@ -1,7 +1,8 @@
+
 'use client';
 
-import { useLiff } from "../components/LiffProvider";
-
+import { useState } from 'react';
+import { useLiff } from '../components/LiffProvider';
 
 export default function LiffTestPage() {
     const {
@@ -14,6 +15,22 @@ export default function LiffTestPage() {
         user,
         login,
     } = useLiff();
+
+    const [copied, setCopied] = useState(false);
+
+    const copyIdToken = async () => {
+        if (!idToken) return;
+
+        try {
+            await navigator.clipboard.writeText(idToken);
+            setCopied(true);
+
+            setTimeout(() => setCopied(false), 2500);
+        } catch {
+            setCopied(false);
+            alert('ไม่สามารถคัดลอก Token ได้');
+        }
+    };
 
     return (
         <main style={{ padding: 24 }}>
@@ -36,6 +53,21 @@ export default function LiffTestPage() {
             <p>Inside LINE: {String(isInClient)}</p>
             <p>Logged In: {String(isLoggedIn)}</p>
             <p>ID Token: {idToken ? 'ได้รับแล้ว' : 'ไม่พบ'}</p>
+
+            {idToken && (
+                <button
+                    onClick={copyIdToken}
+                    style={{
+                        backgroundColor: '#06C755',
+                        color: 'white',
+                        padding: '12px 20px',
+                        borderRadius: 10,
+                        marginTop: 12,
+                    }}
+                >
+                    {copied ? 'คัดลอกแล้ว' : 'Copy ID Token'}
+                </button>
+            )}
 
             {!loading && !error && !isLoggedIn && (
                 <button
