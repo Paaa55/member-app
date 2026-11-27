@@ -195,7 +195,25 @@ export default function LiffTestPage() {
         );
     }
 
-    if (!member) return null;
+    if (!member) {
+        return (
+            <main className="min-h-screen p-6">
+                <h1 className="text-2xl font-bold">TJ Member</h1>
+                <p className="mt-4">กำลังรอข้อมูลสมาชิก...</p>
+                <pre className="mt-4 rounded bg-gray-100 p-4 text-black">
+                    {JSON.stringify({
+                        loading,
+                        isLoggedIn,
+                        hasIdToken: !!idToken,
+                        hasUser: !!user,
+                        checking,
+                        registrationRequired,
+                        apiError,
+                    }, null, 2)}
+                </pre>
+            </main>
+        );
+    }
 
     return (
         <main className="min-h-screen bg-gray-100 p-5">
