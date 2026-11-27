@@ -1,103 +1,279 @@
-
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useLiff } from '../components/LiffProvider';
+
+interface Member {
+    id: string;
+    memberCode: string | null;
+    name: string;
+    lineUserId: string | null;
+    phone: string | null;
+    birthDate: string | null;
+    homeBranchCode?: string | null;
+    currentPoints: number;
+    status: string;
+    createdAt: string;
+}
+
+interface LineLoginResponse {
+    isRegistered: boolean;
+    accessToken?: string;
+    registrationToken?: string;
+    member?: Member;
+}
 
 export default function LiffTestPage() {
     const {
         loading,
         error,
-        isInitialized,
-        isInClient,
         isLoggedIn,
         idToken,
         user,
         login,
     } = useLiff();
 
-    const [copied, setCopied] = useState(false);
+    const [checking, setChecking] = useState(false);
+    const [member, setMember] = useState<Member | null>(null);
+    const [registrationRequired, setRegistrationRequired] =
+        useState(false);
+    const [apiError, setApiError] = useState('');
 
-    const copyIdToken = async () => {
-        if (!idToken) return;
+    useEffect(() => {
+        if (loading || !isLoggedIn || !idToken) return;
 
-        try {
-            await navigator.clipboard.writeText(idToken);
-            setCopied(true);
+        const controller = new AbortController();
 
-            setTimeout(() => setCopied(false), 2500);
-        } catch {
-            setCopied(false);
-            alert('ไม่สามารถคัดลอก Token ได้');
-        }
-    };
+        const authenticate = async () => {
+            setChecking(true);
+            setApiError('');
+            setMember(null);
+            setRegistrationRequired(false);
 
-    return (
-        <main style={{ padding: 24 }}>
-            <h1>TJ Member</h1>
-            <p>LIFF Integration Test</p>
+            try {
+                const baseUrl =
+                    process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/$/, '');
 
-            {loading && <p>กำลังเชื่อมต่อ LINE...</p>}
+                if (!baseUrl) {
+                    throw new Error(
+                        'Missing NEXT_PUBLIC_API_BASE_URL'
+                    );
+                }
 
-            {error && (
-                <p style={{ color: 'red' }}>
-                    LIFF Error: {error}
-                </p>
-            )}
+                // 1. ส่ง LINE ID Token ให้ Backend ตรวจสอบ
+                const loginResponse = await fetch(
+                    `${baseUrl}/api/auth/line`,
+                    {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({ idToken }),
+                        signal: controller.signal,
+                    }
+                );
 
-            <hr />
+                const loginData =
+                    await loginResponse.json() as LineLoginResponse & {
+                        message?: string;
+                    };
 
-            <h2>LIFF Debug</h2>
+                if (!loginResponse.ok) {
+                    throw new Error(
+                        loginData.message || 'LINE authentication failed'
+                    );
+                }
 
-            <p>LIFF Initialized: {String(isInitialized)}</p>
-            <p>Inside LINE: {String(isInClient)}</p>
-            <p>Logged In: {String(isLoggedIn)}</p>
-            <p>ID Token: {idToken ? 'ได้รับแล้ว' : 'ไม่พบ'}</p>
+                // 2. ถ้ายังไม่ได้สมัครสมาชิก
+                if (!loginData.isRegistered) {
+                    setRegistrationRequired(true);
+                    return;
+                }
 
-            {idToken && (
-                <button
-                    onClick={copyIdToken}
-                    style={{
-                        backgroundColor: '#06C755',
-                        color: 'white',
-                        padding: '12px 20px',
-                        borderRadius: 10,
-                        marginTop: 12,
-                    }}
-                >
-                    {copied ? 'คัดลอกแล้ว' : 'Copy ID Token'}
-                </button>
-            )}
+                if (!loginData.accessToken) {
+                    throw new Error('Access Token not found');
+                }
 
-            {!loading && !error && !isLoggedIn && (
+                // 3. ใช้ Access Token ขอข้อมูลสมาชิก
+                const profileResponse = await fetch(
+                    `${baseUrl}/api/auth/me`,
+                    {
+                        method: 'GET',
+                        headers: {
+                            Authorization: `Bearer ${loginData.accessToken}`,
+                        },
+                        signal: controller.signal,
+                    }
+                );
+
+                const profileData = await profileResponse.json();
+
+                if (!profileResponse.ok) {
+                    throw new Error(
+                        profileData.message || 'Cannot load member profile'
+                    );
+                }
+
+                setMember(profileData as Member);
+            } catch (err) {
+                if (err instanceof Error && err.name === 'AbortError') {
+                    return;
+                }
+
+                setApiError(
+                    err instanceof Error
+                        ? err.message
+                        : 'Something went wrong'
+                );
+            } finally {
+                if (!controller.signal.aborted) {
+                    setChecking(false);
+                }
+            }
+        };
+
+        authenticate();
+
+        return () => controller.abort();
+    }, [loading, isLoggedIn, idToken]);
+
+    if (loading) {
+        return <main className="p-6">กำลังเชื่อมต่อ LINE...</main>;
+    }
+
+    if (error) {
+        return (
+            <main className="p-6">
+                <h1>TJ Member</h1>
+                <p className="text-red-500">LIFF Error: {error}</p>
+            </main>
+        );
+    }
+
+    if (!isLoggedIn) {
+        return (
+            <main className="min-h-screen flex items-center justify-center p-6">
                 <button
                     onClick={login}
                     className="bg-[#06C755] text-white px-6 py-3 rounded-xl"
                 >
                     เข้าสู่ระบบด้วย LINE
                 </button>
-            )}
+            </main>
+        );
+    }
 
-            {user && (
-                <>
-                    <hr />
+    if (checking) {
+        return (
+            <main className="min-h-screen flex items-center justify-center p-6">
+                <p>กำลังตรวจสอบข้อมูลสมาชิก...</p>
+            </main>
+        );
+    }
 
-                    <h2>LINE Profile</h2>
+    if (apiError) {
+        return (
+            <main className="min-h-screen p-6">
+                <h1 className="text-2xl font-bold">TJ Member</h1>
+                <p className="text-red-500 mt-4">{apiError}</p>
+            </main>
+        );
+    }
 
-                    {user.pictureUrl && (
-                        <img
-                            src={user.pictureUrl}
-                            alt="LINE Profile"
-                            width={80}
-                            height={80}
-                            style={{ borderRadius: '50%' }}
-                        />
-                    )}
+    if (registrationRequired) {
+        return (
+            <main className="min-h-screen flex flex-col items-center justify-center p-6">
+                <h1 className="text-2xl font-bold">TJ Member</h1>
+                <p className="mt-4">สวัสดี {user?.displayName}</p>
+                <p className="mt-2 text-gray-500">
+                    ยังไม่พบข้อมูลสมาชิกของคุณ
+                </p>
+                <p className="mt-2">
+                    กรุณาดำเนินการสมัครสมาชิก
+                </p>
+            </main>
+        );
+    }
 
-                    <p>ชื่อ: {user.displayName}</p>
-                    <p>LINE User ID: {user.userId}</p>
-                </>
-            )}
+    if (!member) return null;
+
+    return (
+        <main className="min-h-screen bg-gray-100 p-5">
+            <div className="max-w-md mx-auto">
+                <header className="mb-6">
+                    <h1 className="text-2xl font-bold text-green-700">
+                        TJ Member
+                    </h1>
+                    <p className="text-gray-500">
+                        Member Dashboard
+                    </p>
+                </header>
+
+                <section className="bg-white rounded-2xl shadow p-6">
+                    <div className="flex items-center gap-4">
+                        {user?.pictureUrl && (
+                            <img
+                                src={user.pictureUrl}
+                                alt="Profile"
+                                className="w-16 h-16 rounded-full"
+                            />
+                        )}
+
+                        <div>
+                            <h2 className="text-xl font-bold">
+                                {member.name}
+                            </h2>
+                            <p className="text-sm text-gray-500">
+                                {member.memberCode || 'รอออก Member Code'}
+                            </p>
+                        </div>
+                    </div>
+
+                    <hr className="my-5" />
+
+                    <div className="grid grid-cols-2 gap-4">
+                        <div>
+                            <p className="text-sm text-gray-500">
+                                เบอร์โทรศัพท์
+                            </p>
+                            <p className="font-medium">
+                                {member.phone || '-'}
+                            </p>
+                        </div>
+
+                        <div>
+                            <p className="text-sm text-gray-500">
+                                คะแนนสะสม
+                            </p>
+                            <p className="text-2xl font-bold text-green-700">
+                                {member.currentPoints.toLocaleString()}
+                            </p>
+                        </div>
+
+                        <div>
+                            <p className="text-sm text-gray-500">
+                                สาขาหลัก
+                            </p>
+                            <p className="font-medium">
+                                {member.homeBranchCode || '-'}
+                            </p>
+                        </div>
+
+                        <div>
+                            <p className="text-sm text-gray-500">
+                                สถานะสมาชิก
+                            </p>
+                            <p className="font-medium text-green-700">
+                                {member.status}
+                            </p>
+                        </div>
+                    </div>
+                </section>
+
+                <p className="text-center text-xs text-gray-400 mt-6">
+                    TJ Member Platform
+                </p>
+            </div>
         </main>
     );
 }
