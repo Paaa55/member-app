@@ -26,6 +26,7 @@ interface LiffContextType {
     idToken: string | null;
     user: LiffUser | null;
     login: () => void;
+    scopes: string[];
 }
 
 const LiffContext = createContext<LiffContextType | null>(null);
@@ -55,6 +56,7 @@ export function LiffProvider({ children }: { children: ReactNode }) {
     const [isLoggedIn, setIsLoggedIn] = useState(false);
     const [idToken, setIdToken] = useState<string | null>(null);
     const [user, setUser] = useState<LiffUser | null>(null);
+    const [scopes, setScopes] = useState<string[]>([]);
 
     useEffect(() => {
         let cancelled = false;
@@ -62,6 +64,8 @@ export function LiffProvider({ children }: { children: ReactNode }) {
         async function setupLiff() {
             try {
                 await initializeLiff();
+                const context = liff.getContext();
+                setScopes(context?.scope ?? []);
 
                 if (cancelled) return;
 
@@ -122,6 +126,7 @@ export function LiffProvider({ children }: { children: ReactNode }) {
                 idToken,
                 user,
                 login,
+                scopes,
             }}
         >
             {children}

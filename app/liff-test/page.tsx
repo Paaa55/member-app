@@ -31,6 +31,7 @@ export default function LiffTestPage() {
         idToken,
         user,
         login,
+        scopes,
     } = useLiff();
 
     const [checking, setChecking] = useState(false);
@@ -206,6 +207,7 @@ export default function LiffTestPage() {
                         isLoggedIn,
                         hasIdToken: !!idToken,
                         hasUser: !!user,
+                        scopes,
                         checking,
                         registrationRequired,
                         apiError,
